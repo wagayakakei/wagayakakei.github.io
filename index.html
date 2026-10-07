@@ -103,6 +103,7 @@ p{margin:0}
 .li .t{display:block;font-weight:500;overflow-wrap:anywhere;line-height:1.35}
 .li .s{display:block;font-size:12px;color:var(--ink-2);overflow-wrap:anywhere}
 .li:active{background:var(--surface-2)}
+.li>svg{width:18px;height:18px;flex:none;color:var(--ink-3)}
 .li.del .t{text-decoration:line-through;color:var(--ink-3)}
 .day{width:34px;flex:none;text-align:center;line-height:1.05}
 .day b{display:block;font-family:var(--f-num);font-size:22px;font-weight:700}
@@ -519,11 +520,15 @@ function sheetBudget(){
 }
 
 /* ---------- 繰り返し ---------- */
-function nextDate(d,every){const t=parseDate(d);if(every==='week')t.setDate(t.getDate()+7);else if(every==='2week')t.setDate(t.getDate()+14);else if(every==='year')t.setFullYear(t.getFullYear()+1);else{const day=t.getDate();t.setDate(1);t.setMonth(t.getMonth()+1);t.setDate(Math.min(day,new Date(t.getFullYear(),t.getMonth()+1,0).getDate()))}return fmtDate(t)}
+function parseEvery(ev){const L={week:[1,'week'],'2week':[2,'week'],month:[1,'month'],year:[1,'year']};if(L[ev])return L[ev];const m=/^(\d+)(day|week|month|year)$/.exec(ev||'');return m&&+m[1]>0?[+m[1],m[2]]:[1,'month']}
+function everyLabel(ev){const[n,u]=parseEvery(ev);if(n===1)return {day:'毎日',week:'毎週',month:'毎月',year:'毎年'}[u];if(n===2&&u==='week')return '隔週';return n+{day:'日',week:'週間',month:'か月',year:'年'}[u]+'ごと'}
+function nextDate(d,every,dom){const[n,u]=parseEvery(every),t=parseDate(d);if(u==='day')t.setDate(t.getDate()+n);else if(u==='week')t.setDate(t.getDate()+7*n);else{const day=dom||t.getDate();t.setDate(1);if(u==='year')t.setFullYear(t.getFullYear()+n);else t.setMonth(t.getMonth()+n);t.setDate(Math.min(day,new Date(t.getFullYear(),t.getMonth()+1,0).getDate()))}return fmtDate(t)}
+const draftEvery=d=>{if(d.rep!=='custom')return d.rep;const n=Number(z2h(d.repN));return Number.isInteger(n)&&n>=1&&n<=999?n+d.repU:null};
+const repPreview=d=>{const ev=draftEvery(d);if(!d.rep)return '';if(!ev)return '間隔は 1〜999 の整数で入力してください';return `${everyLabel(ev)}に自動で追加します。次回は ${nextDate(d.date||todayStr(),ev)}`};
 function runRecurring(){
   const today=todayStr();let made=0;
   all('rec').forEach(r=>{if(!r.on||!r.next)return;let next=r.next,guard=0;
-    while(next<=today&&guard++<60){const id='x_'+r.id.replace(/^rec_/,'r')+'_'+next.replace(/-/g,'');if(!docs.has(id)){put(id,'x',Object.assign({},r.tpl,{date:next,rid:r.id,by:r.tpl.by||me(),at:Date.now(),cm:[]}));made++}next=nextDate(next,r.every)}
+    while(next<=today&&guard++<60){const id='x_'+r.id.replace(/^rec_/,'r')+'_'+next.replace(/-/g,'');if(!docs.has(id)){put(id,'x',Object.assign({},r.tpl,{date:next,rid:r.id,by:r.tpl.by||me(),at:Date.now(),cm:[]}));made++}next=nextDate(next,r.every,r.dom)}
     if(next!==r.next)put(r.id,'rec',Object.assign({},r,{next}));
   });
   if(made){toast(`繰り返しの支出を ${made} 件追加しました`);renderMain()}
@@ -658,7 +663,7 @@ function viewAuth(){
 /* ---------- シート ---------- */
 function newDraft(e,o={}){
   const g=e?get(e.g):(get(o.g)||get(lsGet(NS+'-lastg'))||liveGroups()[0]),cur=e?.cur||g?.cur||'JPY',ids=MID();
-  const d={id:o.copy?null:e?.id,g:e?.g||g?.id||'',desc:e?.desc||'',amtS:e?fromMinor(e.amt,cur):'',cur,date:o.copy?todayStr():(e?.date||todayStr()),cat:e?.cat||(baseCats().includes('食費')?'食費':baseCats()[0]||'その他'),note:e?.note||'',payer:me(),paidS:{},mode:'default',v:{},inc:{},items:[],rep:'',src:o.copy?null:e,img:null};
+  const d={id:o.copy?null:e?.id,g:e?.g||g?.id||'',desc:e?.desc||'',amtS:e?fromMinor(e.amt,cur):'',cur,date:o.copy?todayStr():(e?.date||todayStr()),cat:e?.cat||(baseCats().includes('食費')?'食費':baseCats()[0]||'その他'),note:e?.note||'',payer:me(),paidS:{},mode:'default',v:{},inc:{},items:[],rep:'',repN:'3',repU:'month',src:o.copy?null:e,img:null};
   ids.forEach(i=>{d.paidS[i]='';d.v[i]='';d.inc[i]=true});
   if(e){const ps=ids.filter(i=>e.paid?.[i]>0);if(ps.length>1){d.payer='multi';ids.forEach(i=>d.paidS[i]=fromMinor(e.paid[i]||0,cur))}else d.payer=ps[0]||me();
     const sp=e.sp||{mode:'default'};d.mode=sp.mode;
@@ -710,7 +715,7 @@ function sheetEdit(){
     <div class="f">分け方<div class="splitbox" id="spBox">${splitBoxHTML(d)}</div></div>
     <label class="f">メモ<textarea class="plain" id="xNote" data-d="note" placeholder="任意">${esc(d.note)}</textarea></label>
     <label class="f">レシートの写真（任意）<input class="plain" id="xImg" type="file" accept="image/*" style="padding:8px"></label>
-    ${d.id?'':`<label class="f">繰り返し<select class="plain" id="xRep" data-d="rep"><option value="">しない</option>${Object.entries(EVERY).map(([k,l])=>`<option value="${k}"${d.rep===k?' selected':''}>${l}</option>`).join('')}</select></label>`}
+    ${d.id?'':`<label class="f">繰り返し<select class="plain" id="xRep" data-d="rep" data-rr="1"><option value="">しない</option>${Object.entries(EVERY).map(([k,l])=>`<option value="${k}"${d.rep===k?' selected':''}>${l}</option>`).join('')}<option value="custom"${d.rep==='custom'?' selected':''}>間隔を指定（3か月ごと など）</option></select></label>${d.rep==='custom'?`<div class="grid2"><label class="f">間隔<input class="plain numin" id="xRepN" data-d="repN" inputmode="numeric" value="${esc(d.repN)}"></label><label class="f">単位<select class="plain" id="xRepU" data-d="repU">${[['day','日ごと'],['week','週間ごと'],['month','か月ごと'],['year','年ごと']].map(([k,l])=>`<option value="${k}"${d.repU===k?' selected':''}>${l}</option>`).join('')}</select></label></div>`:''}<p class="small muted" id="repPv"${d.rep?'':' hidden'}>${esc(repPreview(d))}</p>`}
     <button class="btn primary block" type="submit" style="height:48px">${d.id?'変更を保存':'追加する'}</button></form>`;
   return [d.id?'支出を編集':'支出を追加',body];
 }
@@ -769,7 +774,7 @@ function sheetMembers(){
 function sheetWho(){return ['あなたはどちらですか',`<div class="confirm-box"><p>このアカウントで初めて開きました。どちらの名前で記録するか選んでください。</p>${members().map(m=>`<button class="btn block${m.uid?'':' primary'}" data-act="bindMe" data-id="${m.id}"${m.uid?' disabled':''}>${esc(m.name)}${m.uid?'（登録済み）':''}</button>`).join('')}</div>`]}
 function sheetRecList(){
   const l=all('rec');
-  return ['繰り返しの支出',`<div class="form">${l.length?`<div class="list">${l.map(r=>`<div class="li"><span class="grow"><span class="t">${esc(r.tpl.desc)}　<span class="num">${fmt(r.tpl.amt,r.tpl.cur)}</span></span><span class="s">${EVERY[r.every]}・次回 ${r.next}・${esc(gname(r.tpl.g))}${r.on?'':'・停止中'}</span></span><button class="btn sm" data-act="recTog" data-id="${r.id}">${r.on?'止める':'再開'}</button><button class="icon-btn" data-act="recDel" data-id="${r.id}" aria-label="削除">${I.x}</button></div>`).join('')}</div>`:'<div class="empty"><b>登録はまだありません</b>支出を追加するときに「繰り返し」を選ぶと、ここに並びます</div>'}<p class="small muted">次回の日付になると、アプリを開いたときに自動で明細に追加されます。</p></div>`];
+  return ['繰り返しの支出',`<div class="form">${l.length?`<div class="list">${l.map(r=>`<div class="li"><span class="grow"><span class="t">${esc(r.tpl.desc)}　<span class="num">${fmt(r.tpl.amt,r.tpl.cur)}</span></span><span class="s">${everyLabel(r.every)}・次回 ${r.next}・${esc(gname(r.tpl.g))}${r.on?'':'・停止中'}</span></span><button class="btn sm" data-act="recTog" data-id="${r.id}">${r.on?'止める':'再開'}</button><button class="icon-btn" data-act="recDel" data-id="${r.id}" aria-label="削除">${I.x}</button></div>`).join('')}</div>`:'<div class="empty"><b>登録はまだありません</b>支出を追加するときに「繰り返し」を選ぶと、ここに並びます</div>'}<p class="small muted">次回の日付になると、アプリを開いたときに自動で明細に追加されます。</p></div>`];
 }
 function sheetCats(){const base=baseCats(),extra=cats().filter(c=>!base.includes(c));return ['項目',`<div class="form"><p class="small muted">支出を入力するときに選ぶ項目です。予算もこの項目ごとに決められます。</p><form id="catForm" style="display:flex;gap:8px"><input class="plain" id="catName" placeholder="追加する項目名" autocomplete="off" required><button class="btn primary" type="submit">追加</button></form><div class="list">${base.map(c=>`<div class="li" style="min-height:44px"><span class="grow"><i class="catdot" style="--c:${ccol(c)}"></i>${esc(c)}</span><button class="icon-btn" data-act="catDel" data-id="${esc(c)}" aria-label="${esc(c)}を削除">${I.x}</button></div>`).join('')||'<div class="li"><span class="muted">項目がありません</span></div>'}</div>${extra.length?`<p class="small muted">一覧から外したあとも、過去の明細で使っている項目は残ります：${extra.map(esc).join('、')}</p>`:''}${st.sheet.back?'<button class="btn block" data-act="openBudget">予算の設定に戻る</button>':''}</div>`]}
 function sheetRates(){const r=conf()?.rates||{};return ['外貨のレート',`<form class="form" id="rateForm"><p class="small muted">1 単位あたり何円かを入れます。明細の「円に換算」で使います。</p><div class="splitbox">${Object.keys(CUR).filter(c=>c!=='JPY').map(c=>`<label class="srow"><span>1 ${c} ＝</span><input class="plain numin" id="rt_${c}" inputmode="decimal" placeholder="円" value="${esc(r[c]??'')}"></label>`).join('')}</div><button class="btn block" type="button" data-act="fetchRates">いまのレートを取得</button><button class="btn primary block" type="submit">保存</button></form>`]}
@@ -919,7 +924,7 @@ document.addEventListener('input',ev=>{
   if(t.id==='q'){st.q=t.value;$('#xlist').innerHTML=listHTML();return}
   if(t.dataset.d&&st.sheet?.type==='edit'){const d=st.sheet.d,k=t.dataset.d;
     if(k==='inc')d.inc[t.dataset.m]=t.checked;else if(k==='v'||k==='paidS')d[k][t.dataset.m]=t.value;else if(k.startsWith('it.'))d.items[+t.dataset.i][k.slice(3)]=t.value;else d[k]=t.value;
-    if(t.dataset.rr){if(k==='g'){const g=get(d.g);if(g?.cur)d.cur=g.cur}renderSheet()}else{const pv=$('#pv');if(pv)pv.innerHTML=previewHTML(d)}}
+    if(t.dataset.rr){if(k==='g'){const g=get(d.g);if(g?.cur)d.cur=g.cur}renderSheet()}else{const pv=$('#pv');if(pv)pv.innerHTML=previewHTML(d);const rp=$('#repPv');if(rp)rp.textContent=repPreview(d)}}
 });
 document.addEventListener('change',ev=>{
   const t=ev.target;
@@ -933,13 +938,14 @@ document.addEventListener('submit',async ev=>{
   ev.preventDefault();const id=ev.target.id;
   if(id==='xForm'){const d=st.sheet.d,c=draftCalc(d);if(c.err){toast(c.err);$('#pv')?.scrollIntoView({block:'center'});return}
     if(!d.g)return toast('グループを選んでください');
+    const every=d.id?'':draftEvery(d);if(every===null)return toast('繰り返しの間隔は 1〜999 の整数で入力してください');
     const desc=d.desc.trim()||d.cat,base=d.src||{};
     const e=Object.assign({},base,{id:d.id||undefined,g:d.g,desc,amt:c.amt,cur:d.cur,date:d.date||todayStr(),cat:d.cat,paid:c.paid,sp:c.sp,owed:c.owed,note:d.note.trim(),cm:base.cm||[]});
     if(!d.id){delete e.at;delete e.by;delete e.rid;delete e.del;delete e.img}
     if(d.img)e.img=true;
     const saved=saveX(e,d.id?'edit':'add');
     if(d.img)put('r_'+saved.id,'receipt',{img:d.img});
-    if(!d.id&&d.rep){put('rec_'+uid(),'rec',{every:d.rep,next:nextDate(saved.date,d.rep),on:true,tpl:{g:saved.g,desc,amt:c.amt,cur:d.cur,cat:d.cat,paid:c.paid,sp:c.sp,owed:c.owed,note:saved.note,by:me()}})}
+    if(every){put('rec_'+uid(),'rec',{every,dom:+saved.date.slice(8),next:nextDate(saved.date,every),on:true,tpl:{g:saved.g,desc,amt:c.amt,cur:d.cur,cat:d.cat,paid:c.paid,sp:c.sp,owed:c.owed,note:saved.note,by:me()}})}
     lsSet(NS+'-lastg',d.g);closeSheet();renderMain();toast(d.id?'保存しました':`追加しました（${MID().map(i=>nm(i)+' '+fmt(c.owed[i],d.cur)).join('／')}）`);return}
   if(id==='cmForm'){const t=$('#cmText').value.trim();if(!t)return;const e=get(st.sheet.id);e.cm=(e.cm||[]).concat([{by:me(),at:Date.now(),text:t}]);saveX(e,'cm');renderSheet();return}
   if(id==='payForm'){const s=st.sheet,cur=$('#payCur').value,amt=toMinor($('#payAmt').value,cur);if(!(amt>0))return toast('金額を入力してください');
