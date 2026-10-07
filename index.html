@@ -720,6 +720,13 @@ function splitBoxHTML(d){
   }
   return h+`<div id="pv">${previewHTML(d)}</div>`;
 }
+const normDesc=x=>z2h(x||'').trim().toLowerCase().replace(/\s+/g,' ');
+function guessCat(desc){
+  const q=normDesc(desc);if(q.length<2)return null;const ex={},pre={};
+  live().forEach(e=>{if(e.pay||!e.cat)return;const t=normDesc(e.desc);if(t===q)ex[e.cat]=(ex[e.cat]||0)+1;else if(t.startsWith(q)||q.startsWith(t)&&t.length>=2)pre[e.cat]=(pre[e.cat]||0)+1});
+  for(const m of [ex,pre]){const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];if(top&&top[1]>=2)return top[0]}
+  return null;
+}
 function amtPvHTML(d){if(!hasOp(d.amtS))return '<p class="amtpv"></p>';const m=toMinor(d.amtS,d.cur);return m==null?'<p class="amtpv err">式を確認してください</p>':`<p class="amtpv">計算結果 <b>${fmt(m,d.cur)}</b></p>`}
 function sheetEdit(){
   const d=st.sheet.d,ids=MID(),gs=liveGroups().concat(d.g&&get(d.g)?.arch?[get(d.g)]:[]);
@@ -729,6 +736,7 @@ function sheetEdit(){
     <div id="amtPv">${amtPvHTML(d)}</div>
     <label class="f">内容<input class="plain" id="xDesc" data-d="desc" placeholder="例：オーケー 食料品" value="${esc(d.desc)}" autocomplete="off" list="descs"></label><datalist id="descs">${[...new Set(live().filter(e=>!e.pay).sort(byDate).slice(0,150).map(e=>e.desc))].slice(0,30).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
     <div class="grid2"><label class="f">日付<input class="plain" id="xDate" type="date" data-d="date" value="${d.date}" required></label><label class="f">項目<select class="plain" id="xCat" data-d="cat">${cats().map(c=>`<option${c===d.cat?' selected':''}>${esc(c)}</option>`).join('')}</select></label></div>
+    <p class="small muted" id="catHint"${d.catAuto?'':' hidden'}>${d.catAuto?`過去の入力に合わせて、項目を「${esc(d.cat)}」にしました`:''}</p>
     ${gs.length>1||!d.g?`<label class="f">グループ<select class="plain" id="xG" data-d="g" data-rr="1">${gs.map(g=>`<option value="${g.id}"${g.id===d.g?' selected':''}>${esc(g.name)}</option>`).join('')}</select></label>`:''}
     <div class="f">支払った人<div class="seg">${ids.map(i=>`<button type="button" data-act="payer" data-id="${i}" aria-pressed="${d.payer===i}">${esc(nm(i))}</button>`).join('')}<button type="button" data-act="payer" data-id="multi" aria-pressed="${d.payer==='multi'}">2人で</button></div>
       ${d.payer==='multi'?`<div class="splitbox">${ids.map(i=>`<label class="srow"><span>${esc(nm(i))} の支払額</span><input class="plain numin" id="p_${i}" data-d="paidS" data-m="${i}" inputmode="decimal" placeholder="0" value="${esc(d.paidS[i])}"></label>`).join('')}</div>`:''}</div>
@@ -948,6 +956,8 @@ document.addEventListener('input',ev=>{
   if(t.id==='q'){st.q=t.value;$('#xlist').innerHTML=listHTML();return}
   if(t.dataset.d&&st.sheet?.type==='edit'){const d=st.sheet.d,k=t.dataset.d;
     if(k==='inc')d.inc[t.dataset.m]=t.checked;else if(k==='v'||k==='paidS')d[k][t.dataset.m]=t.value;else if(k.startsWith('it.'))d.items[+t.dataset.i][k.slice(3)]=t.value;else d[k]=t.value;
+    if(k==='cat'){d.catTouched=true;d.catAuto=false;const h=$('#catHint');if(h)h.hidden=true}
+    if(k==='desc'&&!d.id&&!d.catTouched){const g=guessCat(d.desc),h=$('#catHint'),sel=$('#xCat');if(g&&cats().includes(g)){if(!d.catAuto)d.catBase=d.cat;d.cat=g;d.catAuto=true;if(sel)sel.value=g;if(h){h.textContent=`過去の入力に合わせて、項目を「${g}」にしました`;h.hidden=false}}else if(d.catAuto){d.catAuto=false;d.cat=d.catBase||d.cat;if(sel)sel.value=d.cat;if(h)h.hidden=true}}
     if(t.dataset.rr){if(k==='g'){const g=get(d.g);if(g?.cur)d.cur=g.cur}renderSheet()}else{const pv=$('#pv');if(pv)pv.innerHTML=previewHTML(d);const ap=$('#amtPv');if(ap&&k==='amtS')ap.innerHTML=amtPvHTML(d);const rp=$('#repPv');if(rp)rp.textContent=repPreview(d)}}
 });
 document.addEventListener('focusin',ev=>{const t=ev.target;if(t.matches&&t.matches('#xForm input.numin')&&t.id!=='xRepN'&&!(t.dataset.d==='v'&&/percent|shares/.test(st.sheet?.d?.mode||'')))st.calcId=t.id});
