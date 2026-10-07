@@ -262,7 +262,7 @@ const hasOp=str=>/[+*/()]|.-/.test(calcNorm(str));
 const toMinor=(str,cur)=>{const n=calc(str);if(n==null||!isFinite(n))return null;return Math.round(n*10**cinfo(cur).d+1e-9)};
 const fromMinor=(m,cur)=>m==null||m===''?'':String(m/10**cinfo(cur).d);
 const numOf=s=>{const t=z2h(s).replace(/[,\s%]/g,'');if(t==='')return 0;const n=Number(t);return isFinite(n)?n:NaN};
-const CATS=['光熱費','消耗品','食費','デート','医療費','養育費','ガソリン代'];
+const CATS=['光熱費','消耗品','食費','デート','医療費','養育費','ガソリン代','住宅ローン','管理費','修繕積立金','その他住宅費（ネット・駐輪等）'];
 const CCOL=['#2E8B57','#D06A1E','#2459B8','#6B4FA0','#D9A21B','#1F8A8A','#8A6A3B','#3B7FC4','#59626B','#C8392E','#4C6FA8','#B8336A','#7A5BB5','#C2571A','#178A6E','#B04A7A','#8C7A2B','#3E6BB0','#6B7280','#8A939A'];
 const EN2JP={Groceries:'食費','Dining out':'食費',Liquor:'食費','Food and drink':'食費','Household supplies':'消耗品',Cleaning:'消耗品',Electricity:'光熱費','Heat/gas':'光熱費',Water:'光熱費',Utilities:'光熱費',Trash:'光熱費','TV/Phone/Internet':'光熱費','Medical expenses':'医療費',Childcare:'養育費',Education:'養育費','Gas/fuel':'ガソリン代'};
 const I={
