@@ -233,7 +233,7 @@ textarea.dump{width:100%;height:180px;font-size:12px;font-family:ui-monospace,Me
 <script>
 (()=>{
 'use strict';
-const NS='wagayakakei';
+const NS='wagayakakei',VER='2026-10-07 版12';
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -655,6 +655,7 @@ function viewMore(){
     <button class="li" data-act="openRestore"><span class="grow"><span class="t">バックアップから戻す</span></span></button></div></section>`;
   h+=`<section class="section"><h2>表示</h2><div class="seg">${[['auto','端末に合わせる'],['light','ライト'],['dark','ダーク']].map(([k,l])=>`<button data-act="theme" data-id="${k}" aria-pressed="${th===k}">${l}</button>`).join('')}</div></section>`;
   if(!st.demo)h+=`<section class="section"><h2>アカウント</h2><div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="small">${esc(ses?.user.email||'')}（${esc(nm(me()))}）</div><div class="small" data-sync="dot">${syncHTML('dot')}</div><div class="hero-row"><button class="btn grow" data-act="syncNow">今すぐ同期</button><button class="btn ghost grow" data-act="askLogout">ログアウト</button></div></div></section>`;
+  h+=`<p class="small muted" style="text-align:center;margin-top:22px">わが家の家計簿　${VER}</p>`;
   return h;
 }
 function viewAuth(){
@@ -804,7 +805,7 @@ function sheetRecList(){
   const l=all('rec');
   return ['繰り返しの支出',`<div class="form">${l.length?`<div class="list">${l.map(r=>`<div class="li"><span class="grow"><span class="t">${esc(r.tpl.desc)}　<span class="num">${fmt(r.tpl.amt,r.tpl.cur)}</span></span><span class="s">${everyLabel(r.every)}・次回 ${r.next}・${esc(gname(r.tpl.g))}${r.on?'':'・停止中'}</span></span><button class="btn sm" data-act="recTog" data-id="${r.id}">${r.on?'止める':'再開'}</button><button class="icon-btn" data-act="recDel" data-id="${r.id}" aria-label="削除">${I.x}</button></div>`).join('')}</div>`:'<div class="empty"><b>登録はまだありません</b>支出を追加するときに「繰り返し」を選ぶと、ここに並びます</div>'}<p class="small muted">次回の日付になると、アプリを開いたときに自動で明細に追加されます。</p></div>`];
 }
-function sheetCats(){const base=baseCats(),extra=cats().filter(c=>!base.includes(c));return ['項目',`<div class="form"><p class="small muted">支出を入力するときに選ぶ項目です。予算もこの項目ごとに決められます。</p><form id="catForm" style="display:flex;gap:8px"><input class="plain" id="catName" placeholder="追加する項目名" autocomplete="off" required><button class="btn primary" type="submit">追加</button></form><div class="list">${base.map(c=>`<div class="li" style="min-height:44px"><span class="grow"><i class="catdot" style="--c:${ccol(c)}"></i>${esc(c)}</span><button class="icon-btn" data-act="catDel" data-id="${esc(c)}" aria-label="${esc(c)}を削除">${I.x}</button></div>`).join('')||'<div class="li"><span class="muted">項目がありません</span></div>'}</div>${extra.length?`<p class="small muted">一覧から外したあとも、過去の明細で使っている項目は残ります：${extra.map(esc).join('、')}</p>`:''}${st.sheet.back?'<button class="btn block" data-act="openBudget">予算の設定に戻る</button>':''}</div>`]}
+function sheetCats(){const base=baseCats(),extra=cats().filter(c=>!base.includes(c));return ['項目',`<div class="form"><p class="small muted">支出を入力するときに選ぶ項目です。予算もこの項目ごとに決められます。</p><form id="catForm" style="display:flex;gap:8px"><input class="plain" id="catName" placeholder="追加する項目名" autocomplete="off" required><button class="btn primary" type="submit">追加</button></form><div class="list">${base.map(c=>`<div class="li" style="min-height:44px"><span class="grow"><i class="catdot" style="--c:${ccol(c)}"></i>${esc(c)}</span><button class="icon-btn" data-act="catDel" data-id="${esc(c)}" aria-label="${esc(c)}を削除">${I.x}</button></div>`).join('')||'<div class="li"><span class="muted">項目がありません</span></div>'}</div>${extra.length?`<div class="f">一覧にない項目（過去の明細や取り込んだ明細で使われています）<div class="splitbox">${extra.map((c,k)=>{const n=xs().filter(e=>!e.pay&&e.cat===c).length;return `<div style="display:flex;flex-direction:column;gap:6px"><span style="color:var(--ink);font-weight:500"><i class="catdot" style="--c:${ccol(c)}"></i>${esc(c)} <span class="small muted">${n}件</span></span><div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px"><select class="plain" id="mv_${k}" aria-label="${esc(c)}の移し先"><option value="">移し先を選ぶ</option>${base.map(b=>`<option>${esc(b)}</option>`).join('')}<option value="__keep">この名前のまま一覧に加える</option></select><button class="btn" data-act="catMove" data-id="${esc(c)}" data-k="${k}">実行</button></div></div>`}).join('')}</div><span class="small muted">移すと、その項目の明細がすべて移し先の項目に書き換わります。元には戻せません。</span></div>`:''}${st.sheet.back?'<button class="btn block" data-act="openBudget">予算の設定に戻る</button>':''}</div>`]}
 function sheetRates(){const r=conf()?.rates||{};return ['外貨のレート',`<form class="form" id="rateForm"><p class="small muted">1 単位あたり何円かを入れます。明細の「円に換算」で使います。</p><div class="splitbox">${Object.keys(CUR).filter(c=>c!=='JPY').map(c=>`<label class="srow"><span>1 ${c} ＝</span><input class="plain numin" id="rt_${c}" inputmode="decimal" placeholder="円" value="${esc(r[c]??'')}"></label>`).join('')}</div><button class="btn block" type="button" data-act="fetchRates">いまのレートを取得</button><button class="btn primary block" type="submit">保存</button></form>`]}
 function sheetImport(){
   const s=st.sheet;
@@ -941,6 +942,12 @@ const A={
   recDel(el){gone(el.dataset.id,'rec');renderSheet();renderMain()},
   openCats(el){if(!conf())return;openSheet({type:'cats',back:el?.dataset.back||''})},
   catDel(el){const c=conf();if(!c)return;c.catList=baseCats().filter(x=>x!==el.dataset.id);if(c.budget?.cats){c.budget=Object.assign({},c.budget,{cats:Object.assign({},c.budget.cats)});delete c.budget.cats[el.dataset.id]}put('config','config',c);renderSheet();renderMain()},
+  catMove(el){const from=el.dataset.id,to=$('#mv_'+el.dataset.k).value,c=conf();if(!c)return;if(!to)return toast('移し先を選んでください');
+    if(to==='__keep'){c.catList=baseCats().concat([from]);put('config','config',c);renderSheet();renderMain();return toast(`「${from}」を一覧に加えました`)}
+    let n=0;xs().forEach(e=>{if(!e.pay&&e.cat===from){put(e.id,'x',Object.assign({},e,{cat:to,up:Date.now()}));n++}});
+    all('rec').forEach(r=>{if(r.tpl?.cat===from)put(r.id,'rec',Object.assign({},r,{tpl:Object.assign({},r.tpl,{cat:to})}))});
+    if(c.budget?.cats&&c.budget.cats[from]!=null){const bc=Object.assign({},c.budget.cats);if(bc[to]==null)bc[to]=bc[from];delete bc[from];c.budget=Object.assign({},c.budget,{cats:bc});put('config','config',c)}
+    log('edit',null,`項目「${from}」→「${to}」（${n}件）`);renderSheet();renderMain();toast(`${n} 件を「${to}」に移しました`)},
   openRates(){openSheet({type:'rates'})},
   async fetchRates(){try{const r=await fetch('https://api.frankfurter.dev/v1/latest?base=JPY&symbols='+Object.keys(CUR).filter(c=>c!=='JPY').join(','));const j=await r.json();Object.entries(j.rates||{}).forEach(([c,v])=>{const el=$('#rt_'+c);if(el&&v)el.value=String(Math.round(1/v*1000)/1000)});toast(`${j.date} 時点のレートを入れました。保存を押すと反映します`)}catch(e){toast('レートを取得できませんでした。手で入力してください')}},
   exportCSV(el){const l=live().filter(e=>(!el.dataset.g||e.g===el.dataset.g)&&(!el.dataset.m||e.date.slice(0,7)===el.dataset.m));if(!l.length)return toast('書き出す明細がありません');download(`wagayakakei_${el.dataset.m||(el.dataset.g?gname(el.dataset.g):'all')}_${todayStr()}.csv`,csvOf(l),'text/csv')},
