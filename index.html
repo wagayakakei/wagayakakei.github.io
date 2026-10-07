@@ -358,7 +358,7 @@ function saveX(e,verb){const id=e.id||('x_'+uid());const d=Object.assign({},e,{i
 
 /* ---------- クラウド（Supabase REST） ---------- */
 class NetErr extends Error{} class AuthErr extends Error{}
-const baseUrl=()=>cfg.url.replace(/\/+$/,'');
+const baseUrl=()=>{const u=String(cfg.url||'').trim();try{return new URL(u).origin}catch(e){return u.replace(/\/+$/,'')}};
 async function http(path,opt){let res;try{res=await fetch(baseUrl()+path,opt)}catch(e){throw new NetErr('offline')}const t=await res.text();let json=null;try{json=t?JSON.parse(t):null}catch(e){}return {status:res.status,json}}
 const authHeaders=()=>({apikey:cfg.key,'Content-Type':'application/json'});
 function setSession(j,user){ses={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:+j.expires_at||Math.floor(Date.now()/1000)+(+j.expires_in||3600),user:{id:(user||j.user).id,email:(user||j.user).email}};lsSet(SES_KEY,ses)}
