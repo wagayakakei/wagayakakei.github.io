@@ -149,6 +149,13 @@ input.numin{font-family:var(--f-num);font-weight:600;font-size:21px;text-align:r
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .amtrow{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px}
 .amtrow input{height:56px;font-size:32px}
+.ops{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.ops button{height:40px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-family:var(--f-num);font-weight:600;font-size:22px;line-height:1}
+.ops button:active{background:var(--surface-2)}
+.ops button.eq{background:var(--accent-soft);border-color:transparent}
+.amtpv{font-size:13px;color:var(--ink-2);min-height:20px;text-align:right}
+.amtpv b{font-family:var(--f-num);font-size:20px;color:var(--ink)}
+.amtpv.err{color:var(--owe)}
 .seg{display:flex;background:var(--surface-2);border-radius:11px;padding:3px;gap:3px}
 .seg button{flex:1;min-height:36px;border-radius:9px;font-size:13px;font-weight:500;color:var(--ink-2);padding:2px 6px;overflow-wrap:anywhere}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:var(--shadow)}
@@ -242,7 +249,17 @@ const z2h=s=>String(s??'').replace(/[０-９．，－]/g,c=>String.fromCharCode(
 const CUR={JPY:{s:'¥',d:0},USD:{s:'$',d:2},EUR:{s:'€',d:2},GBP:{s:'£',d:2},KRW:{s:'₩',d:0},TWD:{s:'NT$',d:0},THB:{s:'฿',d:2},AUD:{s:'A$',d:2},CNY:{s:'CN¥',d:2},HKD:{s:'HK$',d:2},SGD:{s:'S$',d:2}};
 const cinfo=c=>CUR[c]||{s:c+' ',d:2};
 const fmt=(minor,cur='JPY')=>{const c=cinfo(cur),v=(minor||0)/10**c.d;return (v<0?'−':'')+c.s+Math.abs(v).toLocaleString('ja-JP',{minimumFractionDigits:c.d,maximumFractionDigits:c.d})};
-const toMinor=(str,cur)=>{const t=z2h(str).replace(/[,￥¥\s]/g,'');if(t==='')return null;const n=Number(t);if(!isFinite(n))return null;return Math.round(n*10**cinfo(cur).d)};
+const calcNorm=str=>z2h(str).replace(/[,￥¥\s]/g,'').replace(/[×＊xX✕]/g,'*').replace(/[÷／]/g,'/').replace(/＋/g,'+').replace(/[−‐―]/g,'-').replace(/（/g,'(').replace(/）/g,')');
+function calc(str){
+  const t=calcNorm(str).replace(/[+\-*/(]+$/,'');if(t==='')return null;if(!/^[0-9.+\-*/()]+$/.test(t))return NaN;
+  let i=0;
+  const fac=()=>{const c=t[i];if(c==='-'){i++;return -fac()}if(c==='+'){i++;return fac()}if(c==='('){i++;const v=expr();if(t[i]!==')')return NaN;i++;return v}const m=/^(\d+\.?\d*|\.\d+)/.exec(t.slice(i));if(!m)return NaN;i+=m[0].length;return Number(m[0])};
+  const term=()=>{let v=fac();while(t[i]==='*'||t[i]==='/'){const o=t[i++],r=fac();v=o==='*'?v*r:v/r}return v};
+  const expr=()=>{let v=term();while(t[i]==='+'||t[i]==='-'){const o=t[i++],r=term();v=o==='+'?v+r:v-r}return v};
+  const v=expr();return i===t.length?v:NaN;
+}
+const hasOp=str=>/[+*/()]|.-/.test(calcNorm(str));
+const toMinor=(str,cur)=>{const n=calc(str);if(n==null||!isFinite(n))return null;return Math.round(n*10**cinfo(cur).d+1e-9)};
 const fromMinor=(m,cur)=>m==null||m===''?'':String(m/10**cinfo(cur).d);
 const numOf=s=>{const t=z2h(s).replace(/[,\s%]/g,'');if(t==='')return 0;const n=Number(t);return isFinite(n)?n:NaN};
 const CATS=['光熱費','消耗品','食費','デート','医療費','養育費','ガソリン代'];
@@ -703,10 +720,13 @@ function splitBoxHTML(d){
   }
   return h+`<div id="pv">${previewHTML(d)}</div>`;
 }
+function amtPvHTML(d){if(!hasOp(d.amtS))return '<p class="amtpv"></p>';const m=toMinor(d.amtS,d.cur);return m==null?'<p class="amtpv err">式を確認してください</p>':`<p class="amtpv">計算結果 <b>${fmt(m,d.cur)}</b></p>`}
 function sheetEdit(){
   const d=st.sheet.d,ids=MID(),gs=liveGroups().concat(d.g&&get(d.g)?.arch?[get(d.g)]:[]);
   const body=`<form class="form" id="xForm">
     <div class="amtrow"><input class="plain numin" id="xAmt" data-d="amtS" inputmode="decimal" placeholder="0" value="${esc(d.amtS)}" aria-label="金額" autocomplete="off"><select class="plain" id="xCur" data-d="cur" data-rr="1" aria-label="通貨">${Object.keys(CUR).map(c=>`<option${c===d.cur?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="ops" role="group" aria-label="計算">${[['+','＋','足す'],['-','−','引く'],['×','×','掛ける'],['÷','÷','割る'],['(','(','かっこ開く'],[')',')','かっこ閉じる'],['=','＝','計算結果に置き換える']].map(([o,l,a])=>`<button type="button" data-act="op" data-op="${o}" aria-label="${a}"${o==='='?' class="eq"':''}>${l}</button>`).join('')}</div>
+    <div id="amtPv">${amtPvHTML(d)}</div>
     <label class="f">内容<input class="plain" id="xDesc" data-d="desc" placeholder="例：オーケー 食料品" value="${esc(d.desc)}" autocomplete="off" list="descs"></label><datalist id="descs">${[...new Set(live().filter(e=>!e.pay).sort(byDate).slice(0,150).map(e=>e.desc))].slice(0,30).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
     <div class="grid2"><label class="f">日付<input class="plain" id="xDate" type="date" data-d="date" value="${d.date}" required></label><label class="f">項目<select class="plain" id="xCat" data-d="cat">${cats().map(c=>`<option${c===d.cat?' selected':''}>${esc(c)}</option>`).join('')}</select></label></div>
     ${gs.length>1||!d.g?`<label class="f">グループ<select class="plain" id="xG" data-d="g" data-rr="1">${gs.map(g=>`<option value="${g.id}"${g.id===d.g?' selected':''}>${esc(g.name)}</option>`).join('')}</select></label>`:''}
@@ -866,7 +886,7 @@ const A={
   logout(){logout()},
   askLogout(){openSheet({type:'confirm',title:'ログアウト',msg:Object.keys(dirty).length?'まだ送信していない入力があります。ログアウトしても端末に残り、次回のログイン時に送信されます。':'この端末からログアウトします。',yes:'logout',label:'ログアウト'})},
   theme(el){lsSet(NS+'-theme',el.dataset.id==='auto'?null:el.dataset.id);applyTheme();renderMain()},
-  addX(){if(!liveGroups().length)return A.newGroup();openSheet({type:'edit',d:newDraft(null,{g:st.g!=='all'?st.g:null})});setTimeout(()=>$('#xAmt')?.focus(),60)},
+  addX(){if(!liveGroups().length)return A.newGroup();st.calcId='xAmt';openSheet({type:'edit',d:newDraft(null,{g:st.g!=='all'?st.g:null})});setTimeout(()=>$('#xAmt')?.focus(),60)},
   openX(el){if(!el.dataset.id||!docs.has(el.dataset.id))return toast('この明細は残っていません');openSheet({type:'detail',id:el.dataset.id})},
   editX(el){openSheet({type:'edit',d:newDraft(get(el.dataset.id))})},
   copyX(el){openSheet({type:'edit',d:newDraft(get(el.dataset.id),{copy:true})})},
@@ -883,6 +903,10 @@ const A={
     box.innerHTML=d?.img?`<img class="rcpt" alt="レシートの写真" src="${d.img}">`:'<p class="small muted">写真を読み込めませんでした</p>'},
   payer(el){const d=st.sheet.d;d.payer=el.dataset.id;renderSheet()},
   spTop(el){const d=st.sheet.d,k=el.dataset.id;if(k==='def')d.mode='default';else if(k==='half'){d.mode='equal';MID().forEach(i=>d.inc[i]=true)}else{d.mode='items';if(!d.items.length)d.items=[{n:'',amtS:'',w:'half'}]}refreshSplit()},
+  op(el){const d=st.sheet.d,o=el.dataset.op;let t=st.calcId&&document.getElementById(st.calcId);if(!t||!t.matches('#xForm input.numin'))t=$('#xAmt');
+    if(o==='='){const m=toMinor(t.value,d.cur);if(m==null)return toast('式を確認してください');t.value=fromMinor(m,d.cur)}
+    else{const a=t.selectionStart??t.value.length,b=t.selectionEnd??a;t.value=t.value.slice(0,a)+o+t.value.slice(b);t.focus();try{t.setSelectionRange(a+o.length,a+o.length)}catch(e){}}
+    t.dispatchEvent(new Event('input',{bubbles:true}))},
   itAdd(){st.sheet.d.items.push({n:'',amtS:'',w:'def'});refreshSplit();$('#it_n'+(st.sheet.d.items.length-1))?.focus()},
   itDel(el){st.sheet.d.items.splice(+el.dataset.i,1);refreshSplit()},
   openSettle(el){openSettle(el.dataset.m,el.dataset.cur)},
@@ -924,8 +948,10 @@ document.addEventListener('input',ev=>{
   if(t.id==='q'){st.q=t.value;$('#xlist').innerHTML=listHTML();return}
   if(t.dataset.d&&st.sheet?.type==='edit'){const d=st.sheet.d,k=t.dataset.d;
     if(k==='inc')d.inc[t.dataset.m]=t.checked;else if(k==='v'||k==='paidS')d[k][t.dataset.m]=t.value;else if(k.startsWith('it.'))d.items[+t.dataset.i][k.slice(3)]=t.value;else d[k]=t.value;
-    if(t.dataset.rr){if(k==='g'){const g=get(d.g);if(g?.cur)d.cur=g.cur}renderSheet()}else{const pv=$('#pv');if(pv)pv.innerHTML=previewHTML(d);const rp=$('#repPv');if(rp)rp.textContent=repPreview(d)}}
+    if(t.dataset.rr){if(k==='g'){const g=get(d.g);if(g?.cur)d.cur=g.cur}renderSheet()}else{const pv=$('#pv');if(pv)pv.innerHTML=previewHTML(d);const ap=$('#amtPv');if(ap&&k==='amtS')ap.innerHTML=amtPvHTML(d);const rp=$('#repPv');if(rp)rp.textContent=repPreview(d)}}
 });
+document.addEventListener('focusin',ev=>{const t=ev.target;if(t.matches&&t.matches('#xForm input.numin')&&t.id!=='xRepN'&&!(t.dataset.d==='v'&&/percent|shares/.test(st.sheet?.d?.mode||'')))st.calcId=t.id});
+document.addEventListener('mousedown',ev=>{if(ev.target.closest&&ev.target.closest('.ops'))ev.preventDefault()});
 document.addEventListener('change',ev=>{
   const t=ev.target;
   if(t.dataset.f){st[t.dataset.f]=t.value;renderMain();return}
@@ -977,7 +1003,7 @@ async function boot(){
   if(ses)return startApp();
   st.screen='login';render();
 }
-window.__wagayakakeiTest={calcOwed,distribute};
+window.__wagayakakeiTest={calcOwed,distribute,calc,toMinor};
 boot();
 })();
 </script>
